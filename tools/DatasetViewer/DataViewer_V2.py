@@ -8,7 +8,10 @@ import pyqtgraph.opengl as gl
 import matplotlib as mpl
 import matplotlib.cm as cm
 import argparse
-from PyQt5 import QtGui, QtCore, uic
+# from PyQt5.QtWidgets import *
+from PyQt5 import QtGui, QtCore, uic, QtWidgets
+# from PyQt5.QtGui import *
+# from PyQt5.QtCore import *
 import json
 import numpy as np
 import cv2
@@ -26,7 +29,7 @@ def get_args():
     parser.add_argument('--username', default='admin', help='Enter your username to recover and save the current index.')
     return parser.parse_args()
 
-class DatasetViewer(QtGui.QMainWindow):
+class DatasetViewer(QtWidgets.QMainWindow):
     def __init__(self, root_dir, topics, timedelays, can_speed_topic, can_steering_angle_topic,
                  can_light_sense_topic, can_wiper_topic, road_friction_topic, weather_topic, label_topic, name,
                  view_only=False, key=None):
@@ -62,29 +65,29 @@ class DatasetViewer(QtGui.QMainWindow):
         self.ratings = ['discard', 'dispensable', 'appropriate', 'very_interesting', 'interpolate']
         self.view_only = view_only
 
-        QtGui.QShortcut(QtGui.QKeySequence('PgDown'), self, self.prev_sample)
-        QtGui.QShortcut(QtGui.QKeySequence('PgUp'), self, self.next_sample)
-        QtGui.QShortcut(QtGui.QKeySequence('Esc'), self, self.close)
+        QtWidgets.QShortcut(QtGui.QKeySequence('PgDown'), self, self.prev_sample)
+        QtWidgets.QShortcut(QtGui.QKeySequence('PgUp'), self, self.next_sample)
+        QtWidgets.QShortcut(QtGui.QKeySequence('Esc'), self, self.close)
 
-        QtGui.QShortcut(QtGui.QKeySequence('1'), self, self.set_bad_sensor)
-        QtGui.QShortcut(QtGui.QKeySequence('2'), self, self.set_no_objects)
+        QtWidgets.QShortcut(QtGui.QKeySequence('1'), self, self.set_bad_sensor)
+        QtWidgets.QShortcut(QtGui.QKeySequence('2'), self, self.set_no_objects)
 
-        QtGui.QShortcut(QtGui.QKeySequence('q'), self, self.set_discard)
-        QtGui.QShortcut(QtGui.QKeySequence('w'), self, self.set_dispensable)
-        QtGui.QShortcut(QtGui.QKeySequence('e'), self, self.set_appropriate)
-        QtGui.QShortcut(QtGui.QKeySequence('r'), self, self.set_very_interesting)
-        QtGui.QShortcut(QtGui.QKeySequence('t'), self, self.set_interpolate)
+        QtWidgets.QShortcut(QtGui.QKeySequence('q'), self, self.set_discard)
+        QtWidgets.QShortcut(QtGui.QKeySequence('w'), self, self.set_dispensable)
+        QtWidgets.QShortcut(QtGui.QKeySequence('e'), self, self.set_appropriate)
+        QtWidgets.QShortcut(QtGui.QKeySequence('r'), self, self.set_very_interesting)
+        QtWidgets.QShortcut(QtGui.QKeySequence('t'), self, self.set_interpolate)
 
-        QtGui.QShortcut(QtGui.QKeySequence('a'), self, self.set_clear)
-        QtGui.QShortcut(QtGui.QKeySequence('s'), self, self.set_light_fog)
-        QtGui.QShortcut(QtGui.QKeySequence('d'), self, self.set_dense_fog)
-        QtGui.QShortcut(QtGui.QKeySequence('f'), self, self.set_rain)
-        QtGui.QShortcut(QtGui.QKeySequence('g'), self, self.set_snow)
+        QtWidgets.QShortcut(QtGui.QKeySequence('a'), self, self.set_clear)
+        QtWidgets.QShortcut(QtGui.QKeySequence('s'), self, self.set_light_fog)
+        QtWidgets.QShortcut(QtGui.QKeySequence('d'), self, self.set_dense_fog)
+        QtWidgets.QShortcut(QtGui.QKeySequence('f'), self, self.set_rain)
+        QtWidgets.QShortcut(QtGui.QKeySequence('g'), self, self.set_snow)
 
-        QtGui.QShortcut(QtGui.QKeySequence('y'), self, self.set_day)
-        QtGui.QShortcut(QtGui.QKeySequence('x'), self, self.set_night)
+        QtWidgets.QShortcut(QtGui.QKeySequence('y'), self, self.set_day)
+        QtWidgets.QShortcut(QtGui.QKeySequence('x'), self, self.set_night)
 
-        QtGui.QShortcut(QtGui.QKeySequence('l'), self, self.editLabelsButton_clicked)
+        QtWidgets.QShortcut(QtGui.QKeySequence('l'), self, self.editLabelsButton_clicked)
 
         self.get_current_index()
         self.create_label_folders()
@@ -866,7 +869,7 @@ def main(name):
     road_friction_topic = 'road_friction'
     weather_topic = 'weather_station'
 
-    app = QtGui.QApplication(sys.argv)
+    app = QtWidgets.QApplication(sys.argv)
     DatasetViewer(root_dir, topics, timedelays, can_speed_topic, can_steering_angle_topic,
                   can_light_sense_topic, can_wiper_topic, road_friction_topic, weather_topic, label_topics, name,
                   view_only=args.view_only)

@@ -7,7 +7,7 @@ from pyquaternion import Quaternion
 def read_label(file, label_dir, camera_to_velodyne=None):
     """Read label file and return object list"""
     file_name = file.split('.png')[0]
-    object_list = get_kitti_object_list(os.path.join(label_dir, file_name + '.txt'),
+    object_list = get_kitti_object_list(file_name + '.txt',
                                         camera_to_velodyne=camera_to_velodyne)
     return object_list
 
@@ -89,6 +89,8 @@ def load_radar_points(path):
 
     data_list = []
     for target in data['targets']:
+        if 'rcsLog' in target:
+            pass
         data_list.append([target['x_sc'], target['y_sc'], 0, target['rVelOverGroundOdo_sc'], target['rDist_sc']])
 
     targets = np.asarray(data_list)
