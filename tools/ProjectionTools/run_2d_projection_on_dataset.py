@@ -30,7 +30,7 @@ def parsArgs():
 
     return args
 
-def create_img(img_coordinates, pts_3D, r, cfg):
+def create_img(img_coordinates, pts_3D, r, cfg, radar=False):
     # Set variables and resize points to target size
     lidar_scale_factor = cfg['lidar_scale_factor']  # store with 1mm accuracy
     shift = cfg['shift']
@@ -46,7 +46,16 @@ def create_img(img_coordinates, pts_3D, r, cfg):
         np.uint16)
 
     values = (pts_3D + shift) * lidar_scale_factor
-    image[img_coordinates[:, 0], img_coordinates[:, 1], :] = values
+    if not radar:
+        image[img_coordinates[:, 0], img_coordinates[:, 1], :] = values
+    elif radar:
+        for point, value in zip(img_coordinates, values):
+            if image[point[0], point[1], 0] == lidar_scale_factor * shift or image[
+                point[0], point[1], 0] > value[1]:
+                image[point[0], :, 0] = value[0] # height y
+                image[point[0], :, 1] = value[1] # depth z
+                image[point[0], :, 2] = value[2] # velocity v
+
 
     return image.transpose([1, 0, 2]).squeeze()
 
@@ -169,7 +178,7 @@ if __name__ == '__main__':
     # os.listdir(os.path.join(self.root_dir, self.rgb_default))
     seleced_files = read_split(args.split_dir, args.label_file + '.txt')
 
-    for sample in tqdm.tqdm(interesting_samples):
+    for sample in tqdm.tqdm(seleced_files):
         # Lidar
         velo_file_strongest = os.path.join(args.root, args.lidar_type + '_' + echos[0][1],
                                            sample + '.bin')
@@ -196,7 +205,7 @@ if __name__ == '__main__':
         img_coordinates, pts_3D_yzv, r = get_pc_projection(radar_data, rtc, radar_to_camera,
                                                            frame=args.frame)
 
-        image = create_img(img_coordinates, pts_3D_yzv, r, cfg)
+        image = create_img(img_coordinates, pts_3D_yzv, r, cfg, radar=True)
 
         radar_statistics = update_statistics(radar_statistics, image, cfg)
 
@@ -204,9 +213,6 @@ if __name__ == '__main__':
         os.makedirs(radar_proj_file_path, exist_ok=True)
         radar_proj_file = os.path.join(radar_proj_file_path, sample + '.png')
         cv2.imwrite(radar_proj_file, image)
-
-        # TODO: generate barcode data
-
 
     disp_statistics_results(lidar_statistics, prefix='lidar')
     disp_statistics_results(radar_statistics, prefix='radar')
