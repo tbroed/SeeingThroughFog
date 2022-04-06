@@ -102,7 +102,7 @@ def update_statistics(statistics, image, cfg):
 
     return statistics
 
-def disp_statistics_results(statistics, prefix=''):
+def disp_statistics_results(statistics, prefix='', empty_list=False):
     resutls = {'legend': ['range', 'intensity', 'height(-y)', 'x', 'height(z)', 'empty channel']}
     # % Final aggregation across the entire dataset.
     statistics['means_per_image_masked'] = np.array(statistics['means_per_image_masked'])
@@ -134,6 +134,10 @@ def disp_statistics_results(statistics, prefix=''):
     print(prefix+' mean_dataset full mmdet: ', mean_dataset*255)
     print(prefix+' std_dataset full mmdet: ', std_dataset*255)
 
+    if empty_list:
+        resutls['no_points_list'] = statistics['no_points_list']
+        print('number of images without radar:', len(statistics['no_points_list']))
+
     with open('./'+prefix+'_channel_statistics.json', 'a',encoding="utf-8") as file:
         json.dump(str(resutls), file)
 
@@ -164,7 +168,8 @@ if __name__ == '__main__':
         means_per_image_masked = [],
         variances_per_image_masked = [],
         means_per_image_full = [],
-        variances_per_image_full = [])
+        variances_per_image_full = [],
+        no_points_list = [])
 
     cfg = dict(
         lidar_scale_factor = 100,   # store with 1mm accuracy
@@ -202,12 +207,15 @@ if __name__ == '__main__':
         radar_file = os.path.join(args.root, 'radar_targets',
                                   sample + '.json')
         radar_data = load_radar_points(radar_file)
-        img_coordinates, pts_3D_yzv, r = get_pc_projection(radar_data, rtc, radar_to_camera,
-                                                           frame=args.frame)
+        if len(radar_data) == 0:
+            radar_statistics['no_points_list'].append(sample)
+            image = cfg['lidar_scale_factor'] * cfg['shift'] * np.ones((r.dsize[0], r.dsize[1], 3)).astype(np.uint16)
+        else:
+            img_coordinates, pts_3D_yzv, r = get_pc_projection(radar_data, rtc, radar_to_camera,
+                                                               frame=args.frame)
+            image = create_img(img_coordinates, pts_3D_yzv, r, cfg, radar=True)
 
-        image = create_img(img_coordinates, pts_3D_yzv, r, cfg, radar=True)
-
-        radar_statistics = update_statistics(radar_statistics, image, cfg)
+            radar_statistics = update_statistics(radar_statistics, image, cfg)
 
         radar_proj_file_path = os.path.join(args.root, 'radar_samples/pixels/yzi') #riv
         os.makedirs(radar_proj_file_path, exist_ok=True)
@@ -215,4 +223,4 @@ if __name__ == '__main__':
         cv2.imwrite(radar_proj_file, image)
 
     disp_statistics_results(lidar_statistics, prefix='lidar')
-    disp_statistics_results(radar_statistics, prefix='radar')
+    disp_statistics_results(radar_statistics, prefix='radar', empty_list=True)
