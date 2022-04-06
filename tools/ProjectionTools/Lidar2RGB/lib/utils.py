@@ -4,7 +4,7 @@ import scipy.spatial
 from sklearn.linear_model import RANSACRegressor
 
 
-def project_pointcloud(lidar, vtc, velodyne_to_camera, image_shape, init=None, draw_big_circle=False):
+def project_pointcloud(lidar, vtc, velodyne_to_camera, image_shape, init=None, draw_big_circle=False, return_points=False):
     def py_func_project_3D_to_2D(points_3D, P):
         # Project on image
         points_2D = np.matmul(P, np.vstack((points_3D, np.ones([1, np.shape(points_3D)[1]]))))
@@ -16,7 +16,8 @@ def project_pointcloud(lidar, vtc, velodyne_to_camera, image_shape, init=None, d
         points_2D = points_2D[0:2]
         return points_2D.transpose()
 
-    def py_func_create_lidar_img(lidar_points_2D, lidar_points, img_width=1248, img_height=375, init=None):
+    def py_func_create_lidar_img(lidar_points_2D, lidar_points, img_width=1248, img_height=375,
+                                 init=None, return_points=False):
         within_image_boarder_width = np.logical_and(img_width > lidar_points_2D[:, 0], lidar_points_2D[:, 0] >= 0)
         within_image_boarder_height = np.logical_and(img_height > lidar_points_2D[:, 1], lidar_points_2D[:, 1] >= 0)
 
@@ -24,6 +25,9 @@ def project_pointcloud(lidar, vtc, velodyne_to_camera, image_shape, init=None, d
         coordinates = np.where(valid_points)[0]
 
         values = lidar_points[:, coordinates]
+        if return_points:
+            return lidar_points_2D[coordinates, :], values.transpose()
+
         if init is None:
             image = -120.0 * np.ones((img_width, img_height, 3))
         else:
@@ -61,12 +65,13 @@ def project_pointcloud(lidar, vtc, velodyne_to_camera, image_shape, init=None, d
 
         return image.transpose([1, 0, 2]).squeeze()
 
-    def py_func_lidar_projection(lidar_points_3D, vtc, velodyne_to_camera, shape, init=None):  # input):
+    def py_func_lidar_projection(lidar_points_3D, vtc, velodyne_to_camera, shape,
+                                 init=None, return_points=False):  # input):
 
         img_width = shape[1]
         img_height = shape[0]
         # print img_height, img_width
-        lidar_points_3D = lidar_points_3D[:, 0:4]
+        lidar_points_3D = lidar_points_3D[:, 0:4] # removes rad_dist
 
         # Filer away all points behind image plane
         min_x = 2.5
@@ -90,9 +95,9 @@ def project_pointcloud(lidar, vtc, velodyne_to_camera, image_shape, init=None, d
         pts_3D_yzi = pts_3D[1:, :]
 
         return py_func_create_lidar_img(lidar_points_2D, pts_3D_yzi, img_width=img_width,
-                                        img_height=img_height, init=init)
+                                        img_height=img_height, init=init, return_points=return_points)
 
-    return py_func_lidar_projection(lidar, vtc, velodyne_to_camera, image_shape, init=init)
+    return py_func_lidar_projection(lidar, vtc, velodyne_to_camera, image_shape, init=init, return_points=return_points)
 
 
 def find_missing_points(last, strongest):

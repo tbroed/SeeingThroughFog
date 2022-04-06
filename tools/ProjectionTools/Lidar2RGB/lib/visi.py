@@ -32,6 +32,18 @@ def plot_spherical_scatter_plot(pointlcoud, pattern='hot', plot_show=True, title
     if plot_show:
         plt.show()
 
+def get_pc_projection(pointcloud, vtc, velodyne_to_camera, frame='default', title=None,
+                                                           draw_big_circle=False,
+                                                           return_points=True):
+
+    # Resize image to other crop
+    r = resize(frame)
+
+    img_coordinates, pts_3D_yzi = project_pointcloud(pointcloud, np.matmul(r.get_image_scaling(), vtc), velodyne_to_camera,
+                       list(r.dsize)[::-1] + [3], init=np.zeros(list(r.dsize)[::-1] + [3]),
+                       draw_big_circle=draw_big_circle, return_points=return_points)
+
+    return img_coordinates, pts_3D_yzi, r
 
 def plot_image_projection(pointcloud, vtc, velodyne_to_camera, frame='default', title=None):
 
