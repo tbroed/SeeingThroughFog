@@ -80,6 +80,15 @@ class resize():
             self.scaling_fx = 1.0  # None
             self.scaling_fy = 1.0  # None
             self.dsize = (1920, 1024)  # 2239
+        if mode == 'HRFuser':
+            # no crop
+            self.crop_height_lower = 0
+            self.crop_height_higher = 1024
+            self.crop_width_lower = 0
+            self.crop_width_higher = 1920
+            self.scaling_fx = 640.0/1920.0  # None
+            self.scaling_fy = 360.0/1024.0  # None
+            self.dsize = (640, 360)  # 2239
         if mode=='Sweden2PSMNet':
             self.crop_height_lower = 0
             self.crop_height_higher = 1024
