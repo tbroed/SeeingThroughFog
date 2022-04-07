@@ -102,7 +102,7 @@ def update_statistics(statistics, image, cfg):
 
     return statistics
 
-def disp_statistics_results(statistics, prefix='', empty_list=False):
+def disp_statistics_results(statistics, prefix='', empty_list=False, no_file_list=False):
     resutls = {'legend': ['range', 'intensity', 'height(-y)', 'x', 'height(z)', 'empty channel']}
     # % Final aggregation across the entire dataset.
     statistics['means_per_image_masked'] = np.array(statistics['means_per_image_masked'])
@@ -136,7 +136,10 @@ def disp_statistics_results(statistics, prefix='', empty_list=False):
 
     if empty_list:
         resutls['no_points_list'] = statistics['no_points_list']
-        print('number of images without radar:', len(statistics['no_points_list']))
+        print('number of images without radar points:', len(statistics['no_points_list']))
+    if no_file_list:
+        resutls['no_file_list'] = statistics['no_file_list']
+        print('number of images without lidar file:', len(statistics['no_file_list']))
 
     with open('./'+prefix+'_channel_statistics.json', 'a',encoding="utf-8") as file:
         json.dump(str(resutls), file)
@@ -163,7 +166,8 @@ if __name__ == '__main__':
         means_per_image_masked = [], #np.zeros([len(nusc.sample), 3])
         variances_per_image_masked = [], #np.zeros([len(nusc.sample), 3])
         means_per_image_full = [],
-        variances_per_image_full = [])
+        variances_per_image_full = [],
+        no_file_list = [])
     radar_statistics = dict(
         means_per_image_masked = [],
         variances_per_image_masked = [],
@@ -187,40 +191,44 @@ if __name__ == '__main__':
         # Lidar
         velo_file_strongest = os.path.join(args.root, args.lidar_type + '_' + echos[0][1],
                                            sample + '.bin')
-        lidar_data_strongest = load_velodyne_scan(velo_file_strongest)
+        if os.path.exists(velo_file_strongest):
+            lidar_data_strongest = load_velodyne_scan(velo_file_strongest)
 
-        # filters point below distance threshold
-        lidar_data_strongest = filter(lidar_data_strongest, 1.5)
+            # filters point below distance threshold
+            lidar_data_strongest = filter(lidar_data_strongest, 1.5)
 
-        img_coordinates, pts_3D_yzi, r = get_pc_projection(lidar_data_strongest, vtc, velodyne_to_camera,
-                                                           frame=args.frame)
-        image = create_img(img_coordinates, pts_3D_yzi, r, cfg)
+            img_coordinates, pts_3D_yzi, r = get_pc_projection(lidar_data_strongest, vtc, velodyne_to_camera,
+                                                               frame=args.frame)
+            image = create_img(img_coordinates, pts_3D_yzi, r, cfg)
 
-        lidar_statistics = update_statistics(lidar_statistics, image, cfg)
+            lidar_statistics = update_statistics(lidar_statistics, image, cfg)
+        else:
+            lidar_statistics['no_file_list'].append(sample)
+            image = cfg['lidar_scale_factor'] * cfg['shift'] * np.ones((r.dsize[0], r.dsize[1], 3)).astype(np.uint16)
 
         lidar_proj_file_path = os.path.join(args.root, 'lidar_samples/yzi', args.lidar_type + '_' + echos[0][1])
         os.makedirs(lidar_proj_file_path, exist_ok = True)
         lidar_proj_file = os.path.join(lidar_proj_file_path,sample + '.png')
         cv2.imwrite(lidar_proj_file, image)
 
-        # Radar
-        radar_file = os.path.join(args.root, 'radar_targets',
-                                  sample + '.json')
-        radar_data = load_radar_points(radar_file)
-        if len(radar_data) == 0:
-            radar_statistics['no_points_list'].append(sample)
-            image = cfg['lidar_scale_factor'] * cfg['shift'] * np.ones((r.dsize[0], r.dsize[1], 3)).astype(np.uint16)
-        else:
-            img_coordinates, pts_3D_yzv, r = get_pc_projection(radar_data, rtc, radar_to_camera,
-                                                               frame=args.frame)
-            image = create_img(img_coordinates, pts_3D_yzv, r, cfg, radar=True)
+        # # Radar
+        # radar_file = os.path.join(args.root, 'radar_targets',
+        #                           sample + '.json')
+        # radar_data = load_radar_points(radar_file)
+        # if len(radar_data) == 0:
+        #     radar_statistics['no_points_list'].append(sample)
+        #     image = cfg['lidar_scale_factor'] * cfg['shift'] * np.ones((r.dsize[0], r.dsize[1], 3)).astype(np.uint16)
+        # else:
+        #     img_coordinates, pts_3D_yzv, r = get_pc_projection(radar_data, rtc, radar_to_camera,
+        #                                                        frame=args.frame)
+        #     image = create_img(img_coordinates, pts_3D_yzv, r, cfg, radar=True)
+        #
+        #     radar_statistics = update_statistics(radar_statistics, image, cfg)
+        #
+        # radar_proj_file_path = os.path.join(args.root, 'radar_samples/yzv') #riv
+        # os.makedirs(radar_proj_file_path, exist_ok=True)
+        # radar_proj_file = os.path.join(radar_proj_file_path, sample + '.png')
+        # cv2.imwrite(radar_proj_file, image)
 
-            radar_statistics = update_statistics(radar_statistics, image, cfg)
-
-        radar_proj_file_path = os.path.join(args.root, 'radar_samples/pixels/yzi') #riv
-        os.makedirs(radar_proj_file_path, exist_ok=True)
-        radar_proj_file = os.path.join(radar_proj_file_path, sample + '.png')
-        cv2.imwrite(radar_proj_file, image)
-
-    disp_statistics_results(lidar_statistics, prefix='lidar')
-    disp_statistics_results(radar_statistics, prefix='radar', empty_list=True)
+    disp_statistics_results(lidar_statistics, prefix= args.lidar_type + '_' + echos[0][1], no_file_list=True)
+    # disp_statistics_results(radar_statistics, prefix='radar', empty_list=True)
