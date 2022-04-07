@@ -2,6 +2,8 @@ import logging
 
 from skimage import io
 from multiprocessing import cpu_count
+import numpy as np
+from tqdm import tqdm
 
 from pcdet.datasets.dataset import DatasetTemplate
 from pcdet.ops.roiaware_pool3d import roiaware_pool3d_utils
@@ -64,14 +66,14 @@ class DenseDataset(DatasetTemplate):
             dataset_cfg=dataset_cfg, class_names=class_names, training=training, root_path=root_path, logger=logger
         )
         self.split = self.dataset_cfg.DATA_SPLIT[self.mode]
-        self.root_split_path = self.root_path / ('training' if self.split != 'test' else 'testing')
+        self.root_split_path = self.root_path #/ ('training' if self.split != 'test' else 'testing')
 
         self.sensor_type = dataset_cfg.SENSOR_TYPE
         self.signal_type = dataset_cfg.SIGNAL_TYPE
 
         self.suffix = '_vlp32' if self.sensor_type == 'vlp32' else ''
 
-        split_dir = self.root_path / 'ImageSets' / f'{self.split}{self.suffix}.txt'
+        split_dir = self.root_path / 'splits' / f'{self.split}{self.suffix}.txt'
 
         if split_dir.exists():
             self.sample_id_list = ['_'.join(x.strip().split(',')) for x in open(split_dir).readlines()]
@@ -126,9 +128,9 @@ class DenseDataset(DatasetTemplate):
                          logger=self.logger)
 
         self.split = split
-        self.root_split_path = self.root_path / ('training' if self.split != 'test' else 'testing')
+        self.root_split_path = self.root_path # / ('training' if self.split != 'test' else 'testing')
 
-        split_dir = self.root_path / 'ImageSets' / f'{self.split}.txt'
+        split_dir = self.root_path / 'splits' / f'{self.split}.txt'
 
         if split_dir.exists():
             self.sample_id_list = ['_'.join(x.strip().split(',')) for x in open(split_dir).readlines()]
@@ -180,6 +182,34 @@ class DenseDataset(DatasetTemplate):
 
             image_info = {'image_idx': sample_idx, 'image_shape': self.get_image_shape(sample_idx)}
             info['image'] = image_info
+
+            # Add radar info
+            radar_img_file = '/radar_samples/yzv/' + sample_idx + '.png'
+            root_file_name = str(self.root_split_path) + radar_img_file
+            radar_shape = np.array(io.imread(root_file_name).shape[:2], dtype=np.int32)
+
+            info['radar_projections'] = dict(image_idx = sample_idx,
+                                     image_shape = radar_shape,
+                                     width = radar_shape[0], # TODO: check if the order is correct
+                                     height = radar_shape[1],
+                                     yzv=dict(file_name=radar_img_file,
+                                              pixel_scale_factor = 100,
+                                              shift = 200,
+                                              empty_channels = None))
+
+            # Add lidar image info
+            lidar_img_file = 'lidar_samples/yzi/lidar_hdl64_strongest/' + sample_idx + '.png' # TODO: adapt to lidar_vlp32_strongest
+            root_file_name = self.root_split_path / lidar_img_file
+            lidar_img_shape = np.array(io.imread(root_file_name).shape[:2], dtype=np.int32)
+
+            info['lidar_projections'] = dict(image_idx = sample_idx,
+                                     image_shape = lidar_img_shape,
+                                     width = lidar_img_shape[0], # TODO: check if the order is correct
+                                     height = lidar_img_shape[1],
+                                     yzi=dict(file_name=radar_img_file,
+                                              pixel_scale_factor=100,
+                                              shift=200,
+                                              empty_channels=None))
 
             P2 = np.concatenate([calib.P2, np.array([[0., 0., 0., 1.]])], axis=0)
             R0_4x4 = np.zeros([4, 4], dtype=calib.R0.dtype)
@@ -291,17 +321,17 @@ class DenseDataset(DatasetTemplate):
                 for i in range(len(info['annos']['name'])):
 
                     name = info['annos']['name'][i]
-                    points = info['annos']['num_points_in_gt'][i]
+                    # points = info['annos']['num_points_in_gt'][i]
 
                     if name in name_counter:
                         name_counter[name] += 1
                     else:
                         name_counter[name] = 1
 
-                    if name in points_counter:
-                        points_counter[name] += points
-                    else:
-                        points_counter[name] = points
+                    # if name in points_counter:
+                    #     points_counter[name] += points
+                    # else:
+                    #     points_counter[name] = points
 
             logger.debug('')
             logger.debug('Class distribution')
@@ -309,18 +339,18 @@ class DenseDataset(DatasetTemplate):
             for key, value in name_counter.items():
                 logger.debug(f'{key:12s} {value}')
 
-            logger.debug('')
-            logger.debug('Points distribution')
-            logger.debug('===================')
-            for key, value in points_counter.items():
-                logger.debug(f'{key:12s} {value}')
-
-            logger.debug('')
-            logger.debug('Average # of points')
-            logger.debug('===================')
-            for key, value in points_counter.items():
-                logger.debug(f'{key:12s} {value/name_counter[key]:.0f}')
-            logger.debug('')
+            # logger.debug('')
+            # logger.debug('Points distribution')
+            # logger.debug('===================')
+            # for key, value in points_counter.items():
+            #     logger.debug(f'{key:12s} {value}')
+            #
+            # logger.debug('')
+            # logger.debug('Average # of points')
+            # logger.debug('===================')
+            # for key, value in points_counter.items():
+            #     logger.debug(f'{key:12s} {value/name_counter[key]:.0f}')
+            # logger.debug('')
 
         return filtered_for_none_infos
 
@@ -391,9 +421,7 @@ class DenseDataset(DatasetTemplate):
                 pred_labels: (N), Tensor
             class_names:
             output_path:
-
         Returns:
-
         """
         def get_template_prediction(num_samples):
             ret_dict = {
@@ -475,8 +503,9 @@ class DenseDataset(DatasetTemplate):
         return len(self.dense_infos)
 
     @staticmethod
-    def compare_points(path_last: str, path_strongest: str, min_dist: float = 3.) -> \
-            Tuple[np.ndarray, List[bool], float, float, float]:
+    def compare_points(path_last: str, path_strongest: str, min_dist: float = 3.):
+      # -> \
+      #       Tuple[np.ndarray, List[bool], float, float, float]:
 
         pc_l = np.fromfile(path_last, dtype=np.float32)
         pc_l = pc_l.reshape((-1, 5))
@@ -598,42 +627,42 @@ class DenseDataset(DatasetTemplate):
             else:
                 mor = np.log(20) / float(alpha)
 
-        if self.dataset_cfg.FOG_AUGMENTATION and self.training:
+        # if self.dataset_cfg.FOG_AUGMENTATION and self.training:
+        #
+        #     points = self.foggify(points, sample_idx, alpha, augmentation_method, curriculum_stage)
 
-            points = self.foggify(points, sample_idx, alpha, augmentation_method, curriculum_stage)
+        # if self.dataset_cfg.STRONGEST_LAST_FILTER:
+        #
+        #     assert(not self.dataset_cfg.FOG_AUGMENTATION), \
+        #         'strongest == last filter is mutually exlusive with fog augmentation'
+        #
+        #     path_last = self.root_split_path / 'lidar_hdl64_last' / ('%s.bin' % sample_idx)
+        #     path_strongest = self.root_split_path / 'lidar_hdl64_strongest' / ('%s.bin' % sample_idx)
+        #
+        #     pc_master, mask, num_last, num_strongest, diff = self.compare_points(path_last, path_strongest)
+        #
+        #     points = pc_master[mask]
 
-        if self.dataset_cfg.STRONGEST_LAST_FILTER:
+        # if self.dataset_cfg.FOV_POINTS_ONLY:
+        #
+        #     pts_rect = calib.lidar_to_rect(points[:, 0:3])
+        #     fov_flag = get_fov_flag(pts_rect, img_shape, calib)
+        #
+        #     # sanity check that there is no frame without a single point in the camera field of view left
+        #     if max(fov_flag) == 0:
+        #
+        #         sample = nth_repl(sample_idx, '_', ',', 2)
+        #
+        #         self.logger.error(f'stage: {"train" if self.training else "eval"}, split: {self.split}, '
+        #                           f'sample: {sample} does not have any points inside the camera FOV')
+        #
+        #     points = points[fov_flag]
 
-            assert(not self.dataset_cfg.FOG_AUGMENTATION), \
-                'strongest == last filter is mutually exlusive with fog augmentation'
-
-            path_last = self.root_split_path / 'lidar_hdl64_last' / ('%s.bin' % sample_idx)
-            path_strongest = self.root_split_path / 'lidar_hdl64_strongest' / ('%s.bin' % sample_idx)
-
-            pc_master, mask, num_last, num_strongest, diff = self.compare_points(path_last, path_strongest)
-
-            points = pc_master[mask]
-
-        if self.dataset_cfg.FOV_POINTS_ONLY:
-
-            pts_rect = calib.lidar_to_rect(points[:, 0:3])
-            fov_flag = get_fov_flag(pts_rect, img_shape, calib)
-
-            # sanity check that there is no frame without a single point in the camera field of view left
-            if max(fov_flag) == 0:
-
-                sample = nth_repl(sample_idx, '_', ',', 2)
-
-                self.logger.error(f'stage: {"train" if self.training else "eval"}, split: {self.split}, '
-                                  f'sample: {sample} does not have any points inside the camera FOV')
-
-            points = points[fov_flag]
-
-        if self.dataset_cfg.COMPENSATE:
-
-            compensation = np.zeros(points.shape)
-            compensation[:, :3] = np.array(self.dataset_cfg.COMPENSATE)
-            points = points + compensation
+        # if self.dataset_cfg.COMPENSATE:
+        #
+        #     compensation = np.zeros(points.shape)
+        #     compensation[:, :3] = np.array(self.dataset_cfg.COMPENSATE)
+        #     points = points + compensation
 
         input_dict = {
             'points': points,
@@ -731,54 +760,54 @@ class DenseDataset(DatasetTemplate):
         return data_dict
 
 
-    def foggify(self, points, sample_idx, alpha, augmentation_method, curriculum_stage, on_the_fly=False):
-
-        if augmentation_method == 'DENSE' and alpha != '0.000' and not on_the_fly:          # load from disk
-
-            curriculum_folder = f'{self.lidar_folder}_{augmentation_method}_beta_{alpha}'
-
-            lidar_file = self.root_split_path / curriculum_folder / ('%s.bin' % sample_idx)
-            assert lidar_file.exists(), f'could not find {lidar_file}'
-            points = np.fromfile(str(lidar_file), dtype=np.float32).reshape(-1, 5)
-
-        if augmentation_method == 'DENSE' and alpha != '0.000' and on_the_fly:
-
-            B = BetaRadomization(beta=float(alpha), seed=0)
-            B.propagate_in_time(10)
-
-            arguments = Namespace(sensor_type='Velodyne HDL-64E S3D', fraction_random=0.05)
-            n_features = points.shape[1]
-            points = haze_point_cloud(points, B, arguments)
-            points = points[:, :n_features]
-
-        if augmentation_method == 'CVL' and alpha != '0.000':
-
-            p = ParameterSet(alpha=float(alpha), gamma=0.000001)
-
-            soft = True
-            hard = True
-            gain = False
-            fog_noise_variant = 'v1'
-
-            if 'FOG_GAIN' in self.dataset_cfg:
-                gain = self.dataset_cfg.FOG_GAIN
-
-            if 'FOG_NOISE_VARIANT' in self.dataset_cfg:
-                fog_noise_variant = self.dataset_cfg.FOG_NOISE_VARIANT
-
-            if 'FOG_SOFT' in self.dataset_cfg:
-                soft = self.dataset_cfg.FOG_SOFT
-
-            if 'FOG_HARD' in self.dataset_cfg:
-                hard = self.dataset_cfg.FOG_HARD
-
-            points, _, _ = simulate_fog(p, pc=points, noise=10, gain=gain, noise_variant=fog_noise_variant,
-                                        soft=soft, hard=hard)
-
-        self.curriculum_stage = curriculum_stage
-        self.current_iteration += self.iteration_increment
-
-        return points
+    # def foggify(self, points, sample_idx, alpha, augmentation_method, curriculum_stage, on_the_fly=False):
+    #
+    #     if augmentation_method == 'DENSE' and alpha != '0.000' and not on_the_fly:          # load from disk
+    #
+    #         curriculum_folder = f'{self.lidar_folder}_{augmentation_method}_beta_{alpha}'
+    #
+    #         lidar_file = self.root_split_path / curriculum_folder / ('%s.bin' % sample_idx)
+    #         assert lidar_file.exists(), f'could not find {lidar_file}'
+    #         points = np.fromfile(str(lidar_file), dtype=np.float32).reshape(-1, 5)
+    #
+    #     # if augmentation_method == 'DENSE' and alpha != '0.000' and on_the_fly:
+    #     #
+    #     #     B = BetaRadomization(beta=float(alpha), seed=0)
+    #     #     B.propagate_in_time(10)
+    #     #
+    #     #     arguments = Namespace(sensor_type='Velodyne HDL-64E S3D', fraction_random=0.05)
+    #     #     n_features = points.shape[1]
+    #     #     points = haze_point_cloud(points, B, arguments)
+    #     #     points = points[:, :n_features]
+    #
+    #     # if augmentation_method == 'CVL' and alpha != '0.000':
+    #     #
+    #     #     p = ParameterSet(alpha=float(alpha), gamma=0.000001)
+    #     #
+    #     #     soft = True
+    #     #     hard = True
+    #     #     gain = False
+    #     #     fog_noise_variant = 'v1'
+    #     #
+    #     #     if 'FOG_GAIN' in self.dataset_cfg:
+    #     #         gain = self.dataset_cfg.FOG_GAIN
+    #     #
+    #     #     if 'FOG_NOISE_VARIANT' in self.dataset_cfg:
+    #     #         fog_noise_variant = self.dataset_cfg.FOG_NOISE_VARIANT
+    #     #
+    #     #     if 'FOG_SOFT' in self.dataset_cfg:
+    #     #         soft = self.dataset_cfg.FOG_SOFT
+    #     #
+    #     #     if 'FOG_HARD' in self.dataset_cfg:
+    #     #         hard = self.dataset_cfg.FOG_HARD
+    #     #
+    #     #     points, _, _ = simulate_fog(p, pc=points, noise=10, gain=gain, noise_variant=fog_noise_variant,
+    #     #                                 soft=soft, hard=hard)
+    #
+    #     self.curriculum_stage = curriculum_stage
+    #     self.current_iteration += self.iteration_increment
+    #
+    #     return points
 
 
 
@@ -826,21 +855,21 @@ def drop_infos_with_no_points(info):
 
     return ret_info
 
-def create_dense_infos(dataset_cfg, class_names, data_path, save_path, logger,
-                       workers=cpu_count(), suffix='', addon=''):
+def create_dense_infos(dataset_cfg, class_names, data_path, save_path, workers=cpu_count(), sensor=''):
+
+    suffix = '_vlp32' if sensor == 'vlp32' else ''
+
+    logger = common_utils.create_logger(f'{save_path / "4th_run.log"}', log_level=logging.DEBUG)
 
     dataset = DenseDataset(dataset_cfg=dataset_cfg, class_names=class_names, root_path=data_path, training=False)
 
     # all split
 
-    logger.info(f'starting to process all scenes')
-
-    all_split = f'all{suffix}{addon}'
+    all_split = f'all{suffix}'
     all_filename = save_path / f'dense_infos_{all_split}.pkl'
 
     dataset.set_split(all_split)
-    dense_infos_train = dataset.get_infos(logger, num_workers=workers,
-                                          has_label=True, count_inside_pts=True)
+    dense_infos_train = dataset.get_infos(logger, num_workers=workers, has_label=True, count_inside_pts=False)
 
     with open(all_filename, 'wb') as f:
         pickle.dump(dense_infos_train, f)
@@ -853,12 +882,11 @@ def create_dense_infos(dataset_cfg, class_names, data_path, save_path, logger,
 
         # train split
 
-        train_split = f'train_clear_{time}{suffix}{addon}'
+        train_split = f'train_clear_{time}{suffix}'
         train_filename = save_path / f'dense_infos_{train_split}.pkl'
 
         dataset.set_split(train_split)
-        dense_infos_train = dataset.get_infos(logger, num_workers=workers,
-                                              has_label=True, count_inside_pts=True)
+        dense_infos_train = dataset.get_infos(logger, num_workers=workers, has_label=True, count_inside_pts=False)
 
         with open(train_filename, 'wb') as f:
             pickle.dump(dense_infos_train, f)
@@ -867,19 +895,18 @@ def create_dense_infos(dataset_cfg, class_names, data_path, save_path, logger,
 
         # val split
 
-        val_split = f'val_clear_{time}{suffix}{addon}'
+        val_split = f'val_clear_{time}{suffix}'
         val_filename = save_path / f'dense_infos_{val_split}.pkl'
 
         dataset.set_split(val_split)
-        dense_infos_val = dataset.get_infos(logger, num_workers=workers,
-                                            has_label=True, count_inside_pts=True)
+        dense_infos_val = dataset.get_infos(logger, num_workers=workers, has_label=True, count_inside_pts=False)
 
         with open(val_filename, 'wb') as f:
             pickle.dump(dense_infos_val, f)
 
         # trainval concatination
 
-        trainval_filename = save_path / f'dense_infos_trainval_clear_{time}{suffix}{addon}.pkl'
+        trainval_filename = save_path / f'dense_infos_trainval_clear_{time}{suffix}.pkl'
 
         with open(trainval_filename, 'wb') as f:
             pickle.dump(dense_infos_train + dense_infos_val, f)
@@ -889,14 +916,13 @@ def create_dense_infos(dataset_cfg, class_names, data_path, save_path, logger,
 
         # test splits
 
-        for condition in ['clear', 'light_fog', 'dense_fog', 'snow']:
+        for condition in ['test_clear', 'light_fog', 'dense_fog', 'snow']:
 
-            test_split = f'test_{condition}_{time}{suffix}{addon}'
+            test_split = f'{condition}_{time}{suffix}'
             test_filename = save_path / f'dense_infos_{test_split}.pkl'
 
             dataset.set_split(test_split)
-            dense_infos_test = dataset.get_infos(logger, num_workers=workers,
-                                                 has_label=True, count_inside_pts=True)
+            dense_infos_test = dataset.get_infos(logger, num_workers=workers, has_label=True, count_inside_pts=False)
 
             with open(test_filename, 'wb') as f:
                 pickle.dump(dense_infos_test, f)
@@ -907,31 +933,16 @@ def create_dense_infos(dataset_cfg, class_names, data_path, save_path, logger,
         #
         # dataset.set_split(train_split)
         # dataset.create_groundtruth_database(logger, info_path=train_filename, split=train_split)
-        #
-        # logger.info(f'data preparation for {time}time scenes finished')
+
+        logger.info(f'data preparation for {time}time scenes finished')
 
     pkl_dir = save_path
 
     for stage in ['train', 'val', 'trainval']:
-        save_file = f'{pkl_dir}/dense_infos_{stage}_clear{suffix}{addon}.pkl'
+        save_file = f'{pkl_dir}/dense_infos_{stage}_clear{suffix}.pkl'
 
-        day_file = f'{pkl_dir}/dense_infos_{stage}_clear_day{suffix}{addon}.pkl'
-        night_file = f'{pkl_dir}/dense_infos_{stage}_clear_night{suffix}{addon}.pkl'
-
-        with open(str(day_file), 'rb') as df:
-            day_infos = pickle.load(df)
-
-        with open(str(night_file), 'rb') as nf:
-            night_infos = pickle.load(nf)
-
-        with open(save_file, 'wb') as f:
-            pickle.dump(day_infos + night_infos, f)
-
-    for condition in ['clear', 'light_fog', 'dense_fog', 'snow']:
-        save_file = f'{pkl_dir}/dense_infos_test_{condition}{suffix}{addon}.pkl'
-
-        day_file = f'{pkl_dir}/dense_infos_test_{condition}_day{suffix}{addon}.pkl'
-        night_file = f'{pkl_dir}/dense_infos_test_{condition}_night{suffix}{addon}.pkl'
+        day_file = f'{pkl_dir}/dense_infos_{stage}_clear_day{suffix}.pkl'
+        night_file = f'{pkl_dir}/dense_infos_{stage}_clear_night{suffix}.pkl'
 
         with open(str(day_file), 'rb') as df:
             day_infos = pickle.load(df)
@@ -942,10 +953,25 @@ def create_dense_infos(dataset_cfg, class_names, data_path, save_path, logger,
         with open(save_file, 'wb') as f:
             pickle.dump(day_infos + night_infos, f)
 
-    # save_file = f'{pkl_dir}/dense_dbinfos_train_clear{suffix}{addon}.pkl'
+    for condition in ['test_clear', 'light_fog', 'dense_fog', 'snow']:
+        save_file = f'{pkl_dir}/dense_infos_{condition}{suffix}.pkl'
+
+        day_file = f'{pkl_dir}/dense_infos_{condition}_day{suffix}.pkl'
+        night_file = f'{pkl_dir}/dense_infos_{condition}_night{suffix}.pkl'
+
+        with open(str(day_file), 'rb') as df:
+            day_infos = pickle.load(df)
+
+        with open(str(night_file), 'rb') as nf:
+            night_infos = pickle.load(nf)
+
+        with open(save_file, 'wb') as f:
+            pickle.dump(day_infos + night_infos, f)
+
+    # save_file = f'{pkl_dir}/dense_dbinfos_train_clear{suffix}.pkl'
     #
-    # day_file = f'{pkl_dir}/dense_dbinfos_train_clear_day{suffix}{addon}.pkl'
-    # night_file = f'{pkl_dir}/dense_dbinfos_train_clear_night{suffix}{addon}.pkl'
+    # day_file = f'{pkl_dir}/dense_dbinfos_train_clear_day{suffix}.pkl'
+    # night_file = f'{pkl_dir}/dense_dbinfos_train_clear_night{suffix}.pkl'
     #
     # with open(str(day_file), 'rb') as df:
     #     day_dict = pickle.load(df)
@@ -970,27 +996,15 @@ if __name__ == '__main__':
         import yaml
         from pathlib import Path
         from easydict import EasyDict
+        import pickle5 as pickle
 
+        dataset_config = EasyDict(yaml.safe_load(open(sys.argv[2])))
         ROOT_DIR = (Path(__file__).resolve().parent / '../../../').resolve()
 
-        log = common_utils.create_logger(f'{ROOT_DIR / "data" / "dense" / "5th_run.log"}', log_level=logging.INFO)
-
-        for a in ['_FOVlast3000', '_FOVstrongest3000']:
-
-            for s in ['vlp32', 'hdl64']:
-
-                log.info(f'{s}{a}')
-
-                v = '_vlp32' if s == 'vlp32' else ''
-                l = '_last' if 'last' in a else ''
-
-                cfg_path = Path(__file__).parent.resolve().parent.parent.parent / 'tools' / 'cfgs' / 'dataset_configs'
-                cfg_path = cfg_path / f'dense_dataset{v}{l}.yaml'
-
-                dataset_config = EasyDict(yaml.safe_load(open(cfg_path)))
-
-                create_dense_infos(dataset_cfg=dataset_config,
-                                   class_names=['Car', 'Pedestrian', 'Cyclist'],
-                                   data_path=ROOT_DIR / 'data' / 'dense',
-                                   save_path=ROOT_DIR / 'data' / 'dense',
-                                   suffix=v, addon=a, logger=log)
+        create_dense_infos(
+            dataset_cfg=dataset_config,
+            class_names=['Car', 'Pedestrian', 'Cyclist'], # TODO: check if if I should use LargeVehicle class
+            data_path=ROOT_DIR / 'SeeingThroughFogData',
+            save_path=ROOT_DIR / 'data' / 'dense',
+            sensor='', #vlp32
+        )
