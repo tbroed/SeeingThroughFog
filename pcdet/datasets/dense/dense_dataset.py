@@ -179,18 +179,19 @@ class DenseDataset(DatasetTemplate):
             info = {}
             pc_info = {'num_features': 5, 'lidar_idx': sample_idx}
             info['point_cloud'] = pc_info
-
-            image_info = {'image_idx': sample_idx, 'image_shape': self.get_image_shape(sample_idx)}
+            img_file = 'cam_stereo_left_lut/%s.png' % sample_idx
+            image_info = {'image_idx': sample_idx, 'image_shape': self.get_image_shape(sample_idx),
+                          'image_path': img_file}
             info['image'] = image_info
 
             # Add radar info
-            radar_img_file = '/radar_samples/yzv/' + sample_idx + '.png'
-            root_file_name = str(self.root_split_path) + radar_img_file
+            radar_img_file = 'radar_samples/yzv/' + sample_idx + '.png'
+            root_file_name = self.root_split_path / radar_img_file
             radar_shape = np.array(io.imread(root_file_name).shape[:2], dtype=np.int32)
 
             info['radar_projections'] = dict(image_idx = sample_idx,
                                      image_shape = radar_shape,
-                                     width = radar_shape[0], # TODO: check if the order is correct
+                                     width = radar_shape[0],
                                      height = radar_shape[1],
                                      yzv=dict(file_name=radar_img_file,
                                               pixel_scale_factor = 100,
@@ -204,9 +205,9 @@ class DenseDataset(DatasetTemplate):
 
             info['lidar_projections'] = dict(image_idx = sample_idx,
                                      image_shape = lidar_img_shape,
-                                     width = lidar_img_shape[0], # TODO: check if the order is correct
+                                     width = lidar_img_shape[0],
                                      height = lidar_img_shape[1],
-                                     yzi=dict(file_name=radar_img_file,
+                                     yzi=dict(file_name=lidar_img_file,
                                               pixel_scale_factor=100,
                                               shift=200,
                                               empty_channels=None))
@@ -1003,7 +1004,7 @@ if __name__ == '__main__':
 
         create_dense_infos(
             dataset_cfg=dataset_config,
-            class_names=['Car', 'Pedestrian', 'Cyclist'], # TODO: check if if I should use LargeVehicle class
+            class_names=['Car', 'Pedestrian', 'Cyclist', 'Van'],
             data_path=ROOT_DIR / 'SeeingThroughFogData',
             save_path=ROOT_DIR / 'data' / 'dense',
             sensor='', #vlp32

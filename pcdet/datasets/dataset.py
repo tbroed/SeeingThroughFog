@@ -22,27 +22,27 @@ class DatasetTemplate(torch_data.Dataset):
         if self.dataset_cfg is None or class_names is None:
             return
 
-        self.point_cloud_range = np.array(self.dataset_cfg.POINT_CLOUD_RANGE, dtype=np.float32)
-        self.point_feature_encoder = PointFeatureEncoder(
-            self.dataset_cfg.POINT_FEATURE_ENCODING,
-            point_cloud_range=self.point_cloud_range
-        )
-        self.data_augmentor = DataAugmentor(
-            self.root_path, self.dataset_cfg, self.class_names, logger=self.logger
-        ) if self.training else None
-        self.data_processor = DataProcessor(
-            self.dataset_cfg.DATA_PROCESSOR, point_cloud_range=self.point_cloud_range, training=self.training
-        )
+        # self.point_cloud_range = np.array(self.dataset_cfg.POINT_CLOUD_RANGE, dtype=np.float32)
+        # self.point_feature_encoder = PointFeatureEncoder(
+        #     self.dataset_cfg.POINT_FEATURE_ENCODING,
+        #     point_cloud_range=self.point_cloud_range
+        # )
+        # self.data_augmentor = DataAugmentor(
+        #     self.root_path, self.dataset_cfg, self.class_names, logger=self.logger
+        # ) if self.training else None
+        # self.data_processor = DataProcessor(
+        #     self.dataset_cfg.DATA_PROCESSOR, point_cloud_range=self.point_cloud_range, training=self.training
+        # )
 
-        self.grid_size = self.data_processor.grid_size
-        self.voxel_size = self.data_processor.voxel_size
+        # self.grid_size = self.data_processor.grid_size
+        # self.voxel_size = self.data_processor.voxel_size
         self.total_epochs = 0
         self._merge_all_iters_to_one_epoch = False
 
-        if hasattr(self.data_processor, "depth_downsample_factor"):
-            self.depth_downsample_factor = self.data_processor.depth_downsample_factor
-        else:
-            self.depth_downsample_factor = None
+        # if hasattr(self.data_processor, "depth_downsample_factor"):
+        #     self.depth_downsample_factor = self.data_processor.depth_downsample_factor
+        # else:
+        self.depth_downsample_factor = None
 
     @property
     def mode(self):
