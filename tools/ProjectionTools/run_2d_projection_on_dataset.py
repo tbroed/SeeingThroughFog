@@ -211,24 +211,24 @@ if __name__ == '__main__':
         lidar_proj_file = os.path.join(lidar_proj_file_path,sample + '.png')
         cv2.imwrite(lidar_proj_file, image)
 
-        # # Radar
-        # radar_file = os.path.join(args.root, 'radar_targets',
-        #                           sample + '.json')
-        # radar_data = load_radar_points(radar_file)
-        # if len(radar_data) == 0:
-        #     radar_statistics['no_points_list'].append(sample)
-        #     image = cfg['lidar_scale_factor'] * cfg['shift'] * np.ones((r.dsize[0], r.dsize[1], 3)).astype(np.uint16)
-        # else:
-        #     img_coordinates, pts_3D_yzv, r = get_pc_projection(radar_data, rtc, radar_to_camera,
-        #                                                        frame=args.frame)
-        #     image = create_img(img_coordinates, pts_3D_yzv, r, cfg, radar=True)
-        #
-        #     radar_statistics = update_statistics(radar_statistics, image, cfg)
-        #
-        # radar_proj_file_path = os.path.join(args.root, 'radar_samples/yzv') #riv
-        # os.makedirs(radar_proj_file_path, exist_ok=True)
-        # radar_proj_file = os.path.join(radar_proj_file_path, sample + '.png')
-        # cv2.imwrite(radar_proj_file, image)
+        # Radar
+        radar_file = os.path.join(args.root, 'radar_targets',
+                                  sample + '.json')
+        radar_data = load_radar_points(radar_file)
+        if len(radar_data) == 0:
+            radar_statistics['no_points_list'].append(sample)
+            image = cfg['lidar_scale_factor'] * cfg['shift'] * np.ones((r.dsize[0], r.dsize[1], 3)).astype(np.uint16)
+        else:
+            img_coordinates, pts_3D_yzv, r = get_pc_projection(radar_data, rtc, radar_to_camera,
+                                                               frame=args.frame)
+            image = create_img(img_coordinates, pts_3D_yzv, r, cfg, radar=True)
+
+            radar_statistics = update_statistics(radar_statistics, image, cfg)
+
+        radar_proj_file_path = os.path.join(args.root, 'radar_samples/yzv') #riv
+        os.makedirs(radar_proj_file_path, exist_ok=True)
+        radar_proj_file = os.path.join(radar_proj_file_path, sample + '.png')
+        cv2.imwrite(radar_proj_file, image)
 
     disp_statistics_results(lidar_statistics, prefix= args.lidar_type + '_' + echos[0][1], no_file_list=True)
     # disp_statistics_results(radar_statistics, prefix='radar', empty_list=True)
