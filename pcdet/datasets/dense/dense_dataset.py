@@ -150,7 +150,7 @@ class DenseDataset(DatasetTemplate):
     def get_label(self, idx):
         label_file = self.root_split_path / 'gt_labels' / 'cam_left_labels_TMP' / ('%s.txt' % idx)
         assert label_file.exists(), f'{label_file} not found'
-        return object3d_kitti.get_objects_from_label(label_file, dense=True)
+        return object3d_kitti.get_objects_from_label(label_file, dense=True, bbox2d=True)
 
     def get_road_plane(self, idx):
         plane_file = self.root_split_path / 'velodyne_planes' / ('%s.txt' % idx)
@@ -225,7 +225,8 @@ class DenseDataset(DatasetTemplate):
 
                 try:                                        # to prevent crash from samples which have no annotations
 
-                    obj_list = self.get_label(sample_idx)
+                    obj_list, counts = self.get_label(sample_idx)
+                    info['counts'] = counts
 
                     if len(obj_list) == 0:
                         raise ValueError
@@ -291,9 +292,22 @@ class DenseDataset(DatasetTemplate):
                 except ValueError:
 
                     part = sample_idx.split("_")
-                    logger.warning(f'{"_".join(part[0:2])},{part[2]} does not contain any relevant LiDAR labels')
+                    logger.warning(f'{"_".join(part[0:2])},{part[2]} does not contain any labels. Continue with empty annotation')
 
-                    return None
+                    annotations = {'name': np.array(['ignore']),
+                                   'truncated': np.array([0.]),
+                                   'occluded': np.array([0.]),
+                                   'alpha': np.array([-1]),
+                                   'bbox': np.array([[-1,-1,-1,-1]]),
+                                   'dimensions': np.array([]),
+                                   'location': np.array([]),
+                                   'rotation_y': np.array([]),
+                                   'score': np.array([-1]),
+                                   'difficulty': np.array([-1]),
+                                   'index': np.array([-1]),
+                                   'gt_boxes_lidar': np.array([])}
+
+                    info['annos'] = annotations
 
                 except AssertionError as e:
 
@@ -316,8 +330,17 @@ class DenseDataset(DatasetTemplate):
 
             name_counter = {}
             points_counter = {}
+            empty_frames_count = 0
+
+            total_counts = {'valid3D': 0,
+                      'invalid3D': 0,
+                      'ignore': 0,
+                      'valid2D': 0,
+                      'invalid2D': 0}
 
             for info in filtered_for_none_infos:
+                if len(info['annos']['name']) == 0:
+                    empty_frames_count += 1
 
                 for i in range(len(info['annos']['name'])):
 
@@ -334,10 +357,20 @@ class DenseDataset(DatasetTemplate):
                     # else:
                     #     points_counter[name] = points
 
+                    for field in info['counts']:
+                        total_counts[field] += info['counts'][field]
+
+
             logger.debug('')
             logger.debug('Class distribution')
             logger.debug('==================')
             for key, value in name_counter.items():
+                logger.debug(f'{key:12s} {value}')
+            logger.debug('==================')
+            key = 'Empty frame count'
+            logger.debug(f'{key:12s} {empty_frames_count}')
+            logger.debug('==================')
+            for key, value in total_counts.items():
                 logger.debug(f'{key:12s} {value}')
 
             # logger.debug('')
@@ -866,7 +899,8 @@ def create_dense_infos(dataset_cfg, class_names, data_path, save_path, workers=c
 
     # all split
 
-    all_split = f'all{suffix}'
+    all_split = 'debug' #f'all{suffix}'
+    # all_split = f'all{suffix}'
     all_filename = save_path / f'dense_infos_{all_split}.pkl'
 
     dataset.set_split(all_split)
