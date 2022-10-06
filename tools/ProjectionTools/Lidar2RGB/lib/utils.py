@@ -92,7 +92,7 @@ def project_pointcloud(lidar, vtc, velodyne_to_camera, image_shape, init=None, d
         # detelete placeholder 1 axis
         pts_3D = np.delete(pts_3D, 3, axis=0)
 
-        pts_3D_yzi = pts_3D[1:, :]
+        pts_3D_yzi = pts_3D[1:, :] # TODO: the last value stays unchanges, could also use rDist here
 
         return py_func_create_lidar_img(lidar_points_2D, pts_3D_yzi, img_width=img_width,
                                         img_height=img_height, init=init, return_points=return_points)

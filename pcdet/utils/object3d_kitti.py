@@ -9,7 +9,13 @@ DENSE_TO_KITTI_LABEL = {'PassengerCar': 'Car',
 
 
 
-def get_objects_from_label(label_file, dense=False):
+def get_objects_from_label(label_file, dense=False, bbox2d=False):
+
+    counts = {'valid3D': 0,
+              'invalid3D': 0,
+              'ignore': 0,
+              'valid2D': 0,
+              'invalid2D': 0}
 
     with open(label_file, 'r') as f:
         lines = f.readlines()
@@ -22,11 +28,29 @@ def get_objects_from_label(label_file, dense=False):
 
         for obj in objects:
 
+            if obj.cls_type == 'ignore':
+                counts['ignore'] += 1
+            elif obj.loc[0] == -1000.:
+                counts['invalid3D'] += 1
+            else:
+                counts['valid3D'] += 1
+            if bbox2d and not obj.box2d[0] == obj.box2d[1] == obj.box2d[2] == obj.box2d[3]:
+                counts['valid2D'] += 1
+            else:
+                counts['invalid2D'] += 1
+
             if obj.loc[0] != -1000. and obj.cls_type != 'ignore':
 
                 objects_visible_in_lidar.append(obj)
 
-        return objects_visible_in_lidar
+            else:
+                if bbox2d and not obj.box2d[0] == obj.box2d[1] == obj.box2d[2] == obj.box2d[3]:
+                    # only interested in 2D bboxes
+                    objects_visible_in_lidar.append(obj)
+                else:
+                    raise Exception('No valid bbox')
+
+        return objects_visible_in_lidar, counts
 
 
     else:

@@ -7,13 +7,14 @@ import cv2
 import os
 import numpy as np
 import argparse
+import tqdm
 
 
 def parsArgs():
     parser = argparse.ArgumentParser(description='Gated2RGB projection tool')
     parser.add_argument('--root', '-r', help='Enter the root folder', default='./example_data')
-    parser.add_argument('--depth_folder', '-d', help='Data folder precise depth', default='psmnet_sweden', choices=['cam_stereo_sgm', 'psmnet_sweden'])
-    parser.add_argument('--debug', '-deb', type=bool, help='Save human readable image', default=True)
+    parser.add_argument('--depth_folder', '-d', help='Data folder precise depth', default='cam_stereo_sgm', choices=['cam_stereo_sgm', 'psmnet_sweden'])
+    parser.add_argument('--debug', '-deb', type=bool, help='Save human readable image', default=False)
     parser.add_argument('--suffix', '-s', type=str, help='Define suffix for warped images', default='psm_warped')
     args = parser.parse_args()
 
@@ -104,12 +105,28 @@ class DepthWarpingWrapper():
                                            cv2.cvtColor(cv2.cvtColor(output, cv2.COLOR_BGR2GRAY),cv2.COLOR_GRAY2BGR), 1 - alpha, 0)
                 return overlay, data['image_data']['cam_stereo_left'], output
             else:
-                for folder in self.gated_keys:
-                    path = os.path.join(self.dest_root, folder.split('_')[0] + '_' + self.suffix)
-                    if not os.path.exists(path):
-                        os.makedirs(path)
-                    print(data['gated_data'][folder].dtype, np.min(data['gated_data'][folder]), np.max(data['gated_data'][folder]))
-                    cv2.imwrite(os.path.join(path, key + '.tiff'), data['gated_data'][folder])
+                # for folder in self.gated_keys:
+                #     path = os.path.join(self.dest_root, folder.split('_')[0] + '_' + self.suffix)
+                #     if not os.path.exists(path):
+                #         os.makedirs(path)
+                #     print(data['gated_data'][folder].dtype, np.min(data['gated_data'][folder]), np.max(data['gated_data'][folder]))
+                #     cv2.imwrite(os.path.join(path, key + '.tiff'), data['gated_data'][folder])
+
+                output = np.max((data['gated_data']['gated0_raw'], data['gated_data']['gated1_raw'],
+                                 data['gated_data']['gated2_raw']), axis=-1).transpose((1, 2, 0))
+                # # save 3 channel image:
+                # path = os.path.join(self.dest_root, 'gated_acc_wraped')
+                # if not os.path.exists(path):
+                #     os.makedirs(path)
+                # cv2.imwrite(os.path.join(path, key + '.png'), output)
+
+                # create 1 channel grey image:
+                path = os.path.join(self.dest_root, 'gated_acc_wraped_grey')
+                if not os.path.exists(path):
+                    os.makedirs(path)
+                output_gray = cv2.cvtColor(output, cv2.COLOR_BGR2GRAY)
+                cv2.imwrite(os.path.join(path, key + '.png'), output_gray)
+
                 return None, None, None
 
 
@@ -126,9 +143,14 @@ if __name__ == '__main__':
     # Read files
     files = os.listdir(os.path.join(args.root, 'cam_stereo_left'))
     print(files)
-    for key in files:
+    for key in tqdm.tqdm(files):
         key = key.split('.tiff')[0]
-        print(key)
+
+        # skip existing files
+        path = os.path.join(args.root, 'gated_acc_wraped_grey', key + '.png')
+        if os.path.exists(path):
+            continue
+
         delta0 = float(load_time('gated0',key)[1] - load_time('rgb', key)[1])/10**9
         delta1 = float(load_time('gated1',key)[1] - load_time('rgb', key)[1])/10**9
         delta2 = float(load_time('gated2',key)[1] - load_time('rgb', key)[1])/10**9

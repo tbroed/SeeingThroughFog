@@ -70,11 +70,12 @@ def load_sweden_calib_data(tf_tree, target='cam_stereo_left_optical', source='bw
 def disparity2depth_psm(disparity):
     baseline = 0.202993
     focal = 2355.722801
-    depth = 250*np.ones(disparity.shape)
+    # depth = 250*np.ones(disparity.shape)
     # In SGM there are NAN values, as areas could not be calculated. The SimpleImputer interpolates those wholes.
     # Larger wholes in some cases can not be closed. Check this publication for better results: In Defense of Classical Image Processing: Fast Depth Completion on the CPU
     imp = SimpleImputer(missing_values=np.nan, strategy="mean")
-    disparity = imp.fit_transform(disparity)
+    disparity = imp.fit_transform(disparity) # TODO: this changes the shape of disparity from (412, 960) to (412, 957)
+    depth = 250*np.ones(disparity.shape)  # maybe this helps
     depth[disparity == 0] = 250
     depth[disparity != 0] = focal * baseline / disparity[disparity != 0]
 

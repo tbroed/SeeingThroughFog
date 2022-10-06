@@ -188,6 +188,14 @@ if __name__ == '__main__':
     seleced_files = read_split(args.split_dir, args.label_file + '.txt')
 
     for sample in tqdm.tqdm(seleced_files):
+        lidar_proj_file_path = os.path.join(args.root, f'lidar_samples_{args.frame}/yzi',
+                                            args.lidar_type + '_' + echos[0][1])
+        lidar_proj_file = os.path.join(lidar_proj_file_path, sample + '.png')
+        radar_proj_file_path = os.path.join(args.root, f'radar_samples_{args.frame}/yzv')
+        radar_proj_file = os.path.join(radar_proj_file_path, sample + '.png')
+        if os.path.exists(lidar_proj_file) and os.path.exists(radar_proj_file):
+            continue
+
         # Lidar
         velo_file_strongest = os.path.join(args.root, args.lidar_type + '_' + echos[0][1],
                                            sample + '.bin')
@@ -203,10 +211,11 @@ if __name__ == '__main__':
 
             lidar_statistics = update_statistics(lidar_statistics, image, cfg)
         else:
+            raise Exception('Check here again an empty lidar image is wanted')
             lidar_statistics['no_file_list'].append(sample)
-            image = cfg['lidar_scale_factor'] * cfg['shift'] * np.ones((r.dsize[0], r.dsize[1], 3)).astype(np.uint16)
+            image = cfg['lidar_scale_factor'] * cfg['shift'] * np.ones((r.dsize[1], r.dsize[0], 3)).astype(np.uint16)
 
-        lidar_proj_file_path = os.path.join(args.root, 'lidar_samples/yzi', args.lidar_type + '_' + echos[0][1])
+        lidar_proj_file_path = os.path.join(args.root, f'lidar_samples_{args.frame}/yzi', args.lidar_type + '_' + echos[0][1])
         os.makedirs(lidar_proj_file_path, exist_ok = True)
         lidar_proj_file = os.path.join(lidar_proj_file_path,sample + '.png')
         cv2.imwrite(lidar_proj_file, image)
@@ -217,7 +226,7 @@ if __name__ == '__main__':
         radar_data = load_radar_points(radar_file)
         if len(radar_data) == 0:
             radar_statistics['no_points_list'].append(sample)
-            image = cfg['lidar_scale_factor'] * cfg['shift'] * np.ones((r.dsize[0], r.dsize[1], 3)).astype(np.uint16)
+            image = cfg['lidar_scale_factor'] * cfg['shift'] * np.ones((r.dsize[1], r.dsize[0], 3)).astype(np.uint16)
         else:
             img_coordinates, pts_3D_yzv, r = get_pc_projection(radar_data, rtc, radar_to_camera,
                                                                frame=args.frame)
@@ -225,10 +234,10 @@ if __name__ == '__main__':
 
             radar_statistics = update_statistics(radar_statistics, image, cfg)
 
-        radar_proj_file_path = os.path.join(args.root, 'radar_samples/yzv') #riv
+        radar_proj_file_path = os.path.join(args.root, f'radar_samples_{args.frame}/yzv') #riv
         os.makedirs(radar_proj_file_path, exist_ok=True)
         radar_proj_file = os.path.join(radar_proj_file_path, sample + '.png')
         cv2.imwrite(radar_proj_file, image)
 
     disp_statistics_results(lidar_statistics, prefix= args.lidar_type + '_' + echos[0][1], no_file_list=True)
-    # disp_statistics_results(radar_statistics, prefix='radar', empty_list=True)
+    disp_statistics_results(radar_statistics, prefix='radar', empty_list=True)
