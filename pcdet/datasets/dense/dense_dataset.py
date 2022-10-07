@@ -150,6 +150,7 @@ class DenseDataset(DatasetTemplate):
     def get_label(self, idx):
         label_file = self.root_split_path / 'gt_labels' / 'cam_left_labels_TMP' / ('%s.txt' % idx)
         assert label_file.exists(), f'{label_file} not found'
+        # setting dense=True will only keep annotations with 3D annotations
         return object3d_kitti.get_objects_from_label(label_file, dense=True)
 
     def get_road_plane(self, idx):
@@ -183,6 +184,9 @@ class DenseDataset(DatasetTemplate):
             image_info = {'image_idx': sample_idx, 'image_shape': self.get_image_shape(sample_idx),
                           'image_path': img_file}
             info['image'] = image_info
+            radar_file = 'radar_targets/%s.json' % sample_idx
+            radar_info = {'num_features': 5, 'radar_idx': sample_idx, 'radar_path': radar_file}
+            info['radar'] = radar_info
 
             # Add radar info
             radar_img_file = 'radar_samples/yzv/' + sample_idx + '.png'
@@ -316,23 +320,44 @@ class DenseDataset(DatasetTemplate):
 
             name_counter = {}
             points_counter = {}
+            points_counter_0 = {}
+            points_counter_max_5 = {}
+            points_counter_max_10 = {}
 
             for info in filtered_for_none_infos:
 
                 for i in range(len(info['annos']['name'])):
 
                     name = info['annos']['name'][i]
-                    # points = info['annos']['num_points_in_gt'][i]
+                    points = info['annos']['num_points_in_gt'][i]
 
                     if name in name_counter:
                         name_counter[name] += 1
                     else:
                         name_counter[name] = 1
 
-                    # if name in points_counter:
-                    #     points_counter[name] += points
-                    # else:
-                    #     points_counter[name] = points
+                    if name in points_counter:
+                        points_counter[name] += points
+                    else:
+                        points_counter[name] = points
+
+                    if points <= 10:
+                        if name in points_counter_max_10:
+                            points_counter_max_10[name] += 1
+                        else:
+                            points_counter_max_10[name] = 1
+
+                        if points <= 5:
+                            if name in points_counter_max_5:
+                                points_counter_max_5[name] += 1
+                            else:
+                                points_counter_max_5[name] = 1
+
+                            if points == 0:
+                                if name in points_counter_0:
+                                    points_counter_0[name] += 1
+                                else:
+                                    points_counter_0[name] = 1
 
             logger.debug('')
             logger.debug('Class distribution')
@@ -340,18 +365,28 @@ class DenseDataset(DatasetTemplate):
             for key, value in name_counter.items():
                 logger.debug(f'{key:12s} {value}')
 
-            # logger.debug('')
-            # logger.debug('Points distribution')
-            # logger.debug('===================')
-            # for key, value in points_counter.items():
-            #     logger.debug(f'{key:12s} {value}')
-            #
-            # logger.debug('')
-            # logger.debug('Average # of points')
-            # logger.debug('===================')
-            # for key, value in points_counter.items():
-            #     logger.debug(f'{key:12s} {value/name_counter[key]:.0f}')
-            # logger.debug('')
+            logger.debug('')
+            logger.debug('Points distribution')
+            logger.debug('===================')
+            for key, value in points_counter.items():
+                logger.debug(f'{key:12s} {value}')
+
+            logger.debug('====== Max 10 points')
+            for key, value in points_counter_max_10.items():
+                logger.debug(f'{key:12s} {value}')
+            logger.debug('====== Max 5 points')
+            for key, value in points_counter_max_5.items():
+                logger.debug(f'{key:12s} {value}')
+            logger.debug('====== 0 points')
+            for key, value in points_counter_0.items():
+                logger.debug(f'{key:12s} {value}')
+
+            logger.debug('')
+            logger.debug('Average # of points')
+            logger.debug('===================')
+            for key, value in points_counter.items():
+                logger.debug(f'{key:12s} {value/name_counter[key]:.0f}')
+            logger.debug('')
 
         return filtered_for_none_infos
 
@@ -870,10 +905,10 @@ def create_dense_infos(dataset_cfg, class_names, data_path, save_path, workers=c
     all_filename = save_path / f'dense_infos_{all_split}.pkl'
 
     dataset.set_split(all_split)
-    dense_infos_train = dataset.get_infos(logger, num_workers=workers, has_label=True, count_inside_pts=False)
+    dense_infos_all = dataset.get_infos(logger, num_workers=workers, has_label=True, count_inside_pts=True)
 
     with open(all_filename, 'wb') as f:
-        pickle.dump(dense_infos_train, f)
+        pickle.dump(dense_infos_all, f)
 
     logger.info(f'{all_filename} saved')
 
@@ -930,10 +965,10 @@ def create_dense_infos(dataset_cfg, class_names, data_path, save_path, workers=c
 
             logger.info(f'{test_filename} saved')
 
-        # logger.info('starting to create groundtruth database for data augmentation')
-        #
-        # dataset.set_split(train_split)
-        # dataset.create_groundtruth_database(logger, info_path=train_filename, split=train_split)
+        logger.info('starting to create groundtruth database for data augmentation')
+
+        dataset.set_split(train_split)
+        dataset.create_groundtruth_database(logger, info_path=train_filename, split=train_split)
 
         logger.info(f'data preparation for {time}time scenes finished')
 
@@ -969,24 +1004,24 @@ def create_dense_infos(dataset_cfg, class_names, data_path, save_path, workers=c
         with open(save_file, 'wb') as f:
             pickle.dump(day_infos + night_infos, f)
 
-    # save_file = f'{pkl_dir}/dense_dbinfos_train_clear{suffix}.pkl'
-    #
-    # day_file = f'{pkl_dir}/dense_dbinfos_train_clear_day{suffix}.pkl'
-    # night_file = f'{pkl_dir}/dense_dbinfos_train_clear_night{suffix}.pkl'
-    #
-    # with open(str(day_file), 'rb') as df:
-    #     day_dict = pickle.load(df)
-    #
-    # with open(str(night_file), 'rb') as nf:
-    #     night_dict = pickle.load(nf)
-    #
-    # save_dict = {}
-    #
-    # for key in day_dict:
-    #     save_dict[key] = day_dict[key] + night_dict[key]
-    #
-    # with open(save_file, 'wb') as f:
-    #     pickle.dump(save_dict, f)
+    save_file = f'{pkl_dir}/dense_dbinfos_train_clear{suffix}.pkl'
+
+    day_file = f'{pkl_dir}/dense_dbinfos_train_clear_day{suffix}.pkl'
+    night_file = f'{pkl_dir}/dense_dbinfos_train_clear_night{suffix}.pkl'
+
+    with open(str(day_file), 'rb') as df:
+        day_dict = pickle.load(df)
+
+    with open(str(night_file), 'rb') as nf:
+        night_dict = pickle.load(nf)
+
+    save_dict = {}
+
+    for key in day_dict:
+        save_dict[key] = day_dict[key] + night_dict[key]
+
+    with open(save_file, 'wb') as f:
+        pickle.dump(save_dict, f)
 
 if __name__ == '__main__':
 
