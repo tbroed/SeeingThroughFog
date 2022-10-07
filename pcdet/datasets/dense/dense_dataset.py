@@ -390,12 +390,13 @@ class DenseDataset(DatasetTemplate):
 
         return filtered_for_none_infos
 
-    def create_groundtruth_database(self, logger, info_path=None, used_classes=None, split='train'):
+    def create_groundtruth_database(self, logger, info_path=None, used_classes=None, split='train',
+                                    suffix='', save_path=None):
 
         import torch
 
-        database_save_path = Path(self.root_path) / (f'gt_database' if split == 'train' else f'gt_database_{split}')
-        db_info_save_path = Path(self.root_path) / f'dense_dbinfos_{split}.pkl'
+        database_save_path = Path(self.root_path) / (f'gt_database{suffix}' if split == 'train' else f'gt_database_{split}{suffix}')
+        db_info_save_path = Path(save_path) / f'dense_dbinfos_{split}{suffix}.pkl'
 
         database_save_path.mkdir(parents=True, exist_ok=True)
         all_db_infos = {}
@@ -901,8 +902,8 @@ def create_dense_infos(dataset_cfg, class_names, data_path, save_path, workers=c
 
     # all split
 
-    all_split = f'all{suffix}'
-    all_filename = save_path / f'dense_infos_{all_split}.pkl'
+    all_split = f'all'
+    all_filename = save_path / f'dense_infos_{all_split}{suffix}.pkl'
 
     dataset.set_split(all_split)
     dense_infos_all = dataset.get_infos(logger, num_workers=workers, has_label=True, count_inside_pts=True)
@@ -918,11 +919,11 @@ def create_dense_infos(dataset_cfg, class_names, data_path, save_path, workers=c
 
         # train split
 
-        train_split = f'train_clear_{time}{suffix}'
-        train_filename = save_path / f'dense_infos_{train_split}.pkl'
+        train_split = f'train_clear_{time}'
+        train_filename = save_path / f'dense_infos_{train_split}{suffix}.pkl'
 
         dataset.set_split(train_split)
-        dense_infos_train = dataset.get_infos(logger, num_workers=workers, has_label=True, count_inside_pts=False)
+        dense_infos_train = dataset.get_infos(logger, num_workers=workers, has_label=True, count_inside_pts=True)
 
         with open(train_filename, 'wb') as f:
             pickle.dump(dense_infos_train, f)
@@ -931,11 +932,11 @@ def create_dense_infos(dataset_cfg, class_names, data_path, save_path, workers=c
 
         # val split
 
-        val_split = f'val_clear_{time}{suffix}'
-        val_filename = save_path / f'dense_infos_{val_split}.pkl'
+        val_split = f'val_clear_{time}'
+        val_filename = save_path / f'dense_infos_{val_split}{suffix}.pkl'
 
         dataset.set_split(val_split)
-        dense_infos_val = dataset.get_infos(logger, num_workers=workers, has_label=True, count_inside_pts=False)
+        dense_infos_val = dataset.get_infos(logger, num_workers=workers, has_label=True, count_inside_pts=True)
 
         with open(val_filename, 'wb') as f:
             pickle.dump(dense_infos_val, f)
@@ -954,11 +955,11 @@ def create_dense_infos(dataset_cfg, class_names, data_path, save_path, workers=c
 
         for condition in ['test_clear', 'light_fog', 'dense_fog', 'snow']:
 
-            test_split = f'{condition}_{time}{suffix}'
-            test_filename = save_path / f'dense_infos_{test_split}.pkl'
+            test_split = f'{condition}_{time}'
+            test_filename = save_path / f'dense_infos_{test_split}{suffix}.pkl'
 
             dataset.set_split(test_split)
-            dense_infos_test = dataset.get_infos(logger, num_workers=workers, has_label=True, count_inside_pts=False)
+            dense_infos_test = dataset.get_infos(logger, num_workers=workers, has_label=True, count_inside_pts=True)
 
             with open(test_filename, 'wb') as f:
                 pickle.dump(dense_infos_test, f)
@@ -968,7 +969,8 @@ def create_dense_infos(dataset_cfg, class_names, data_path, save_path, workers=c
         logger.info('starting to create groundtruth database for data augmentation')
 
         dataset.set_split(train_split)
-        dataset.create_groundtruth_database(logger, info_path=train_filename, split=train_split)
+        dataset.create_groundtruth_database(logger, info_path=train_filename, split=train_split,
+                                            suffix=suffix, save_path=save_path)
 
         logger.info(f'data preparation for {time}time scenes finished')
 
