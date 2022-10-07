@@ -1039,7 +1039,7 @@ if __name__ == '__main__':
 
         create_dense_infos(
             dataset_cfg=dataset_config,
-            class_names=['Car', 'Pedestrian', 'Cyclist', 'Van'],
+            class_names=['Car', 'Pedestrian', 'Cyclist'],
             data_path=ROOT_DIR / 'SeeingThroughFogData',
             save_path=ROOT_DIR / 'data' / 'dense',
             sensor='', #vlp32
