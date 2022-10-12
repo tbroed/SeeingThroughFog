@@ -179,7 +179,8 @@ class DenseDataset(DatasetTemplate):
 
         def process_single_scene(sample_idx, calib=calibration):
             info = {}
-            pc_info = {'num_features': 5, 'lidar_idx': sample_idx}
+            velodyne_path = 'lidar_hdl64_strongest/%s.bin' % sample_idx # TODO: adapt to lidar_vlp32_strongest
+            pc_info = {'num_features': 5, 'lidar_idx': sample_idx, 'velodyne_path': velodyne_path}
             info['point_cloud'] = pc_info
             img_file = 'cam_stereo_left_lut/%s.png' % sample_idx
             image_info = {'image_idx': sample_idx, 'image_shape': self.get_image_shape(sample_idx),
@@ -1050,5 +1051,5 @@ if __name__ == '__main__':
             class_names=['Car', 'Pedestrian', 'Cyclist'],
             data_path=ROOT_DIR / 'SeeingThroughFogData',
             save_path=ROOT_DIR / 'data' / 'dense',
-            sensor='', #vlp32
+            sensor='', #vlp32 # Check TODO's when changing sensor!
         )
