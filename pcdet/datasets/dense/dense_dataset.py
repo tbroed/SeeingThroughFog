@@ -156,6 +156,7 @@ class DenseDataset(DatasetTemplate):
     def get_road_plane(self, idx):
         plane_file = self.root_split_path / 'velodyne_planes' / ('%s.txt' % idx)
         if not plane_file.exists():
+            print('Missing plane file: ', plane_file)
             return None
 
         with open(plane_file, 'r') as f:
@@ -187,6 +188,11 @@ class DenseDataset(DatasetTemplate):
             radar_file = 'radar_targets/%s.json' % sample_idx
             radar_info = {'num_features': 5, 'radar_idx': sample_idx, 'radar_path': radar_file}
             info['radar'] = radar_info
+
+            # Add ground plane:
+            road_plane = self.get_road_plane(sample_idx)
+            if road_plane is not None:
+                info['plane'] = road_plane
 
             # Add radar info
             radar_img_file = 'radar_samples/yzv/' + sample_idx + '.png'
@@ -245,7 +251,7 @@ class DenseDataset(DatasetTemplate):
                                    'score':      np.array([obj.score for obj in obj_list]),
                                    'difficulty': np.array([obj.level for obj in obj_list], np.int32)}
 
-                    num_objects = len([obj.cls_type for obj in obj_list if obj.cls_type != 'DontCare'])
+                    num_objects = len([obj.cls_type for obj in obj_list]) # if obj.cls_type != 'DontCare'])
                     num_gt = len(annotations['name'])
                     index = list(range(num_objects)) + [-1] * (num_gt - num_objects)
                     annotations['index'] = np.array(index, dtype=np.int32)
