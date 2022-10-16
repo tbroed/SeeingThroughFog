@@ -431,6 +431,9 @@ class DenseDataset(DatasetTemplate):
                 filepath = database_save_path / filename
                 gt_points = points[point_indices[i] > 0]
 
+                # Undo for mmdetection3d
+                gt_boxes[i][2] -= gt_boxes[i][5] / 2
+
                 gt_points[:, :3] -= gt_boxes[i, :3]
                 with open(filepath, 'w') as f:
                     gt_points.tofile(f)
